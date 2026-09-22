@@ -74,6 +74,10 @@ class SubstitutionOut(SubstitutionIn):
     target_allergens: List[str]
 
 
+class SafePlanIn(BaseModel):
+    avoid_allergens: List[str] = Field(default_factory=list, description="需要避开的过敏原列表")
+
+
 class ExportBundle(BaseModel):
     ingredients: List[IngredientIn] = []
     recipes: List[RecipeIn] = []

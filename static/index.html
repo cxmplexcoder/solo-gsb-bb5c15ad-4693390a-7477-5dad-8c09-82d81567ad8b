@@ -17,6 +17,7 @@
   <button class="tab" data-tab="substitutions">替代关系</button>
   <button class="tab" data-tab="recipes">配方版本</button>
   <button class="tab" data-tab="analysis">过敏原分析</button>
+  <button class="tab" data-tab="safe">安全替代方案</button>
   <button class="tab" data-tab="compare">版本对比</button>
   <button class="tab" data-tab="io">导入导出</button>
 </nav>
@@ -108,6 +109,27 @@
       </div>
     </div>
     <div id="analyze-result"></div>
+  </section>
+
+  <!-- ========== 安全替代方案 ========== -->
+  <section id="tab-safe" class="panel">
+    <div class="panel-head">
+      <h2>安全替代方案</h2>
+      <div class="head-controls">
+        <select id="safe-recipe"></select>
+        <button class="btn primary" id="btn-safe-search">生成安全方案</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>需要避开的过敏原</h3>
+      <p class="hint">勾选后，含所选过敏原的原料及替代候选会被排除；过敏原清单随所选配方（含其替代链可达范围）动态加载。也可手动补充。</p>
+      <div id="safe-allergens" class="allergen-checks"></div>
+      <div class="actions" style="margin-top:10px">
+        <input id="safe-allergen-custom" placeholder="手动添加过敏原（如 芝麻）" style="flex:1;min-width:200px" />
+        <button type="button" class="btn" id="btn-safe-add-allergen">＋ 添加</button>
+      </div>
+    </div>
+    <div id="safe-result"></div>
   </section>
 
   <!-- ========== 版本对比 ========== -->

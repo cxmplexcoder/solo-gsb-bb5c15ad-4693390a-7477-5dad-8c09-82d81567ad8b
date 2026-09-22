@@ -48,7 +48,10 @@ CREATE INDEX IF NOT EXISTS idx_sub_target ON substitutions(target_code);
 
 def get_connection() -> sqlite3.Connection:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    # check_same_thread=False：FastAPI 的同步生成器依赖（创建连接 / 端点使用 /
+    # 关闭连接）会被分别调度到线程池的不同工作线程，而 sqlite3 默认禁止
+    # 跨线程使用同一连接。每个请求都在 conn_dep 中新建独立连接，不存在共享。
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

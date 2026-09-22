@@ -217,6 +217,32 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #bfe0cd; border-c
 
 .allergen-table td, .allergen-table th { font-size: 13px; }
 
+/* 安全替代方案 */
+.allergen-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.allergen-check { display: inline-flex; align-items: center; cursor: pointer; font-size: 13px; color: var(--muted); }
+.allergen-check input { margin-right: 5px; }
+
+.plan-card { padding: 0; overflow: hidden; }
+.plan-card summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.plan-card[open] summary { border-bottom: 1px solid var(--line); background: #fafbfa; }
+.plan-rank { font-weight: 700; color: var(--primary-dark); font-size: 15px; min-width: 34px; }
+.plan-summary-allergens { margin-left: auto; }
+.plan-card .data-table { border: none; border-radius: 0; }
+.plan-card td, .plan-card th { font-size: 13px; }
+.plan-allergens { padding: 10px 16px; font-size: 13px; }
+tr.row-substituted td { background: var(--ok-bg); }
+.path-node.missing-node { background: #f3c7c1; text-decoration: underline wavy var(--warn); }
+.blocked-block .blocked-reason { font-size: 13px; color: var(--danger); margin: 4px 0 8px; }
+.blocked-block details summary { font-size: 13px; color: var(--muted); cursor: pointer; margin: 6px 0; }
+
 /* 对比 */
 .compare-picker { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
 .compare-picker label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }

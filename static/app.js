@@ -343,6 +343,7 @@ function recipeOptions(selectEl, includeAllVersions = true) {
 
 function fillRecipeSelects() {
   recipeOptions($("#analyze-recipe"));
+  recipeOptions($("#safe-recipe"));
   recipeOptions($("#cmp-a"));
   recipeOptions($("#cmp-b"));
   if (state.recipes.length >= 2) {
@@ -443,6 +444,185 @@ $("#btn-analyze").addEventListener("click", async () => {
   try {
     const data = await api(`/api/recipes/${id}/analyze`);
     renderAnalysis(data);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------------- 安全替代方案 ----------------
+
+const safeState = { allergens: [], checked: new Set() };
+
+function renderSafeAllergenChecks() {
+  const box = $("#safe-allergens");
+  if (!safeState.allergens.length) {
+    box.innerHTML = '<span class="hint">该配方暂无可列出的过敏原，可在下方手动添加。</span>';
+    return;
+  }
+  box.innerHTML = safeState.allergens.map((a) => `
+    <label class="allergen-check">
+      <input type="checkbox" value="${esc(a)}" ${safeState.checked.has(a) ? "checked" : ""} />
+      <span class="tag allergen">${esc(a)}</span>
+    </label>`).join("");
+}
+
+async function loadSafeAllergens() {
+  const id = $("#safe-recipe").value;
+  if (!id) {
+    safeState.allergens = [];
+    renderSafeAllergenChecks();
+    return;
+  }
+  try {
+    const data = await api(`/api/recipes/${id}/analyze`);
+    const known = new Set(safeState.allergens);
+    const fresh = [];
+    for (const root of data.roots) {
+      for (const a of root.total_allergens) {
+        if (!known.has(a)) { known.add(a); fresh.push(a); }
+      }
+    }
+    safeState.allergens = safeState.allergens.filter((a) => known.has(a)).concat(fresh);
+    renderSafeAllergenChecks();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+$("#safe-recipe").addEventListener("change", loadSafeAllergens);
+
+$("#safe-allergens").addEventListener("change", (e) => {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if (!cb) return;
+  if (cb.checked) safeState.checked.add(cb.value);
+  else safeState.checked.delete(cb.value);
+});
+
+$("#btn-safe-add-allergen").addEventListener("click", () => {
+  const input = $("#safe-allergen-custom");
+  const value = input.value.trim();
+  if (!value) return;
+  value.replace("、", ",").split(",").map((s) => s.trim()).filter(Boolean).forEach((a) => {
+    if (!safeState.allergens.includes(a)) safeState.allergens.push(a);
+    safeState.checked.add(a);
+  });
+  input.value = "";
+  renderSafeAllergenChecks();
+});
+
+$("#safe-allergen-custom").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("#btn-safe-add-allergen").click(); }
+});
+
+function safePathChain(path, triggerNode = null) {
+  return path.map((n, i) => {
+    const isLast = i === path.length - 1;
+    const cls = ["path-node"];
+    if (isLast) cls.push("terminal");
+    if (triggerNode && n.code === triggerNode) cls.push("repeat");
+    if (!n.exists) cls.push("missing-node");
+    const al = n.allergens.length ? `<span class="al">[${esc(n.allergens.join(","))}]</span>` : "";
+    return `<span class="${cls.join(" ")}">${esc(n.code)}${al}</span>`;
+  }).join('<span class="path-edge"> → </span>');
+}
+
+const EXCLUSION_REASON_LABEL = {
+  forbidden: "含禁用过敏原",
+  missing: "缺失节点",
+  cyclic: "循环路径",
+  truncated: "超深度上限",
+};
+
+function renderBlocked(blocked) {
+  return `<div class="alert cycle">
+      <strong>⚠ 无安全方案：以下 ${blocked.length} 种配料找不到任何合规候选：</strong>
+    </div>` + blocked.map((b) => {
+      let samples = "";
+      const total = Object.values(b.excluded_counts).reduce((s, v) => s + v, 0);
+      if (total > 0) {
+        samples = `<details><summary>查看被排除的候选路径（${total} 条，示例 ${b.samples.length} 条）</summary><div class="path-list">`;
+        samples += b.samples.map((s) => {
+          const label = EXCLUSION_REASON_LABEL[s.reason] || s.reason;
+          const trigger = s.reason === "forbidden" ? s.trigger_node : null;
+          const extra = s.reason === "forbidden" && s.trigger_allergens.length
+            ? `（${esc(s.trigger_allergens.join("、"))}）` : "";
+          return `<div class="path-line ${s.reason === "missing" ? "missing" : "cyclic"}">
+            ${safePathChain(s.path, trigger)}
+            <span class="path-meta"><span class="badge ${s.reason === "missing" ? "missing" : "cycle"}">${esc(label)}${extra}</span></span>
+          </div>`;
+        }).join("");
+        samples += `</div></details>`;
+      }
+      return `<div class="root-block blocked-block">
+        <div class="root-title">
+          <span class="code-mono">${esc(b.ingredient_code)}</span>
+          <span>${esc(b.ingredient_name)}${b.quantity != null ? ` · ${b.quantity}${esc(b.unit || "")}` : ""}</span>
+          <span class="badge ${b.reason === "missing" ? "missing" : "cycle"}">阻塞配料</span>
+        </div>
+        <div class="blocked-reason">${esc(b.reason_text)}</div>
+        ${samples}
+      </div>`;
+    }).join("");
+}
+
+function renderSafePlans(data) {
+  const avoid = data.avoid_allergens.length
+    ? allergenTags(data.avoid_allergens, "direct")
+    : '<span class="tag muted">未勾选（返回原方）</span>';
+
+  let html = `
+    <div class="summary-bar">
+      <div class="summary-box"><h4>配方</h4><strong>${esc(data.recipe.code)}</strong> v${esc(data.recipe.version)}<br><small>${esc(data.recipe.name)}</small></div>
+      <div class="summary-box"><h4>避开的过敏原</h4>${avoid}</div>
+      <div class="summary-box"><h4>安全方案数</h4><strong>${data.plan_count}</strong> 组${data.has_more ? `<small>（超过 ${data.limit} 组上限，仅展示排序最靠前的 ${data.limit} 组）</small>` : ""}</div>
+      <div class="summary-box"><h4>排序规则</h4><small>替换项数 ↑ · 路径总长度 ↑</small></div>
+    </div>`;
+
+  if (!data.solvable) {
+    $("#safe-result").innerHTML = html + renderBlocked(data.blocked);
+    return;
+  }
+
+  html += data.plans.map((p) => {
+    const body = `
+      <table class="data-table plan-table">
+        <thead><tr><th>配料</th><th>所选原料</th><th>替代路径</th><th>路径长度</th><th>过敏原</th></tr></thead>
+        <tbody>
+          ${p.items.map((it) => `
+            <tr class="${it.substituted ? "row-substituted" : ""}">
+              <td><span class="code-mono">${esc(it.ingredient_code)}</span><br><small>${esc(it.ingredient_name)}${it.quantity != null ? ` · ${it.quantity}${esc(it.unit || "")}` : ""}</small></td>
+              <td><span class="code-mono">${esc(it.selected_code)}</span><br><small>${esc(it.selected_name)}</small>${it.substituted ? ' <span class="tag new">已替代</span>' : ' <span class="tag ok">保留原方</span>'}</td>
+              <td><div class="path-line" style="border:none;background:none;padding:0">${safePathChain(it.path)}</div></td>
+              <td>${it.path_length}</td>
+              <td>${allergenTags(it.allergens)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="plan-allergens">整方过敏原：${allergenTags(p.allergens)}</div>`;
+    return `
+      <details class="card plan-card" ${p.rank === 1 ? "open" : ""}>
+        <summary>
+          <span class="plan-rank">#${p.rank}</span>
+          <span class="tag ${p.substitution_count ? "new" : "ok"}">替换 ${p.substitution_count} 项</span>
+          <span class="tag muted">路径总长度 ${p.total_path_length}</span>
+          <span class="plan-summary-allergens">${allergenTags(p.allergens)}</span>
+        </summary>
+        ${body}
+      </details>`;
+  }).join("");
+
+  $("#safe-result").innerHTML = html;
+}
+
+$("#btn-safe-search").addEventListener("click", async () => {
+  const id = $("#safe-recipe").value;
+  if (!id) return toast("请先选择配方", true);
+  try {
+    const data = await api(`/api/recipes/${id}/safe-plans`, {
+      method: "POST",
+      body: { avoid_allergens: Array.from(safeState.checked) },
+    });
+    renderSafePlans(data);
   } catch (err) {
     toast(err.message, true);
   }
@@ -583,4 +763,6 @@ $("#btn-seed").addEventListener("click", async () => {
 
 // ---------------- 启动 ----------------
 
-refreshAll().catch((err) => toast("初始化失败: " + err.message, true));
+refreshAll()
+  .then(() => loadSafeAllergens())
+  .catch((err) => toast("初始化失败: " + err.message, true));

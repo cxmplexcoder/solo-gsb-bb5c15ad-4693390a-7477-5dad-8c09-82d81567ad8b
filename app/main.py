@@ -9,13 +9,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from . import crud, graph, seed
+from . import crud, graph, safe_plans, seed
 from .database import get_connection, init_db
 from .schemas import (
     ExportBundle,
     ImportResult,
     IngredientIn,
     RecipeIn,
+    SafePlanIn,
     SubstitutionIn,
     normalize_allergens,
 )
@@ -263,6 +264,16 @@ def analyze_recipe_route(recipe_id: int, conn=Depends(conn_dep)):
     if crud.get_recipe(conn, recipe_id) is None:
         raise HTTPException(404, "配方不存在")
     return graph.analyze_recipe(conn, recipe_id)
+
+
+# ---------------- 安全替代方案 ----------------
+
+@app.post("/api/recipes/{recipe_id}/safe-plans")
+def safe_plans_route(recipe_id: int, data: Optional[SafePlanIn] = None, conn=Depends(conn_dep)):
+    if crud.get_recipe(conn, recipe_id) is None:
+        raise HTTPException(404, "配方不存在")
+    avoid = data.avoid_allergens if data else []
+    return safe_plans.build_safe_plans(conn, recipe_id, avoid)
 
 
 # ---------------- 两版配方差异对比 ----------------
