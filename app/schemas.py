@@ -74,6 +74,12 @@ class SubstitutionOut(SubstitutionIn):
     target_allergens: List[str]
 
 
+class SafePlanRequest(BaseModel):
+    """安全替代方案请求：需避开的过敏原列表；limit 会被服务端钳制到 1~50。"""
+    banned_allergens: List[str] = []
+    limit: int = 50
+
+
 class ExportBundle(BaseModel):
     ingredients: List[IngredientIn] = []
     recipes: List[RecipeIn] = []

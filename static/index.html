@@ -9,7 +9,7 @@
 <body>
 <header class="topbar">
   <h1>🧪 配方替代过敏原追踪</h1>
-  <span class="subtitle">食品研发 · 替代链递归分析 · 循环检测</span>
+  <span class="subtitle">食品研发 · 替代链递归分析 · 循环检测 · 安全替代方案</span>
 </header>
 
 <nav class="tabs" id="tabs">
@@ -17,6 +17,7 @@
   <button class="tab" data-tab="substitutions">替代关系</button>
   <button class="tab" data-tab="recipes">配方版本</button>
   <button class="tab" data-tab="analysis">过敏原分析</button>
+  <button class="tab" data-tab="safeplans">安全替代</button>
   <button class="tab" data-tab="compare">版本对比</button>
   <button class="tab" data-tab="io">导入导出</button>
 </nav>
@@ -108,6 +109,26 @@
       </div>
     </div>
     <div id="analyze-result"></div>
+  </section>
+
+  <!-- ========== 安全替代方案 ========== -->
+  <section id="tab-safeplans" class="panel">
+    <div class="panel-head">
+      <h2>安全替代方案</h2>
+      <div class="head-controls">
+        <select id="sp-recipe"></select>
+        <button class="btn primary" id="btn-safe-plans">生成方案</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>需避开的过敏原</h3>
+      <p class="hint">勾选后，含这些过敏原的原料与替代终点都会被排除；每种配料保留原料本身及无环可达的安全终点，再组合为整方方案（按替换项数、路径总长排序，最多 50 组）。</p>
+      <div id="sp-allergens" class="checkbox-grid"></div>
+      <label class="sp-extra">其他过敏原（逗号分隔，可选）
+        <input id="sp-extra" placeholder="如 芝麻, 芹菜" />
+      </label>
+    </div>
+    <div id="sp-result"></div>
   </section>
 
   <!-- ========== 版本对比 ========== -->

@@ -16,6 +16,7 @@ from .schemas import (
     ImportResult,
     IngredientIn,
     RecipeIn,
+    SafePlanRequest,
     SubstitutionIn,
     normalize_allergens,
 )
@@ -30,7 +31,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="配方替代过敏原追踪", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="配方替代过敏原追踪", version="1.1.0", lifespan=lifespan)
 
 
 # ---------------- 序列化辅助 ----------------
@@ -263,6 +264,16 @@ def analyze_recipe_route(recipe_id: int, conn=Depends(conn_dep)):
     if crud.get_recipe(conn, recipe_id) is None:
         raise HTTPException(404, "配方不存在")
     return graph.analyze_recipe(conn, recipe_id)
+
+
+# ---------------- 安全替代方案 ----------------
+
+@app.post("/api/recipes/{recipe_id}/safe-plans")
+def safe_plans_route(recipe_id: int, payload: SafePlanRequest, conn=Depends(conn_dep)):
+    """按勾选需避开的过敏原，为配方生成安全的整方替代方案（最多 50 组）。"""
+    if crud.get_recipe(conn, recipe_id) is None:
+        raise HTTPException(404, "配方不存在")
+    return graph.build_safe_plans(conn, recipe_id, payload.banned_allergens, payload.limit)
 
 
 # ---------------- 两版配方差异对比 ----------------

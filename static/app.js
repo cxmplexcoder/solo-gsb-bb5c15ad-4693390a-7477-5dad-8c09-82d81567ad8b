@@ -61,6 +61,7 @@ async function refreshAll() {
   await Promise.all([loadIngredients(), loadSubstitutions(), loadRecipes()]);
   fillIngredientSelects();
   fillRecipeSelects();
+  fillAllergenChecklist();
 }
 
 // ---------------- 原料 ----------------
@@ -343,6 +344,7 @@ function recipeOptions(selectEl, includeAllVersions = true) {
 
 function fillRecipeSelects() {
   recipeOptions($("#analyze-recipe"));
+  recipeOptions($("#sp-recipe"));
   recipeOptions($("#cmp-a"));
   recipeOptions($("#cmp-b"));
   if (state.recipes.length >= 2) {
@@ -443,6 +445,107 @@ $("#btn-analyze").addEventListener("click", async () => {
   try {
     const data = await api(`/api/recipes/${id}/analyze`);
     renderAnalysis(data);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ---------------- 安全替代方案 ----------------
+
+function fillAllergenChecklist() {
+  const all = [];
+  state.ingredients.forEach((i) =>
+    (i.allergen_list || []).forEach((a) => { if (!all.includes(a)) all.push(a); }));
+  const box = $("#sp-allergens");
+  box.innerHTML = all.length
+    ? all.map((a) => `<label class="chk"><input type="checkbox" value="${esc(a)}" /> ${esc(a)}</label>`).join("")
+    : '<span class="hint">原料库中暂无过敏原记录，可在下方手动输入</span>';
+}
+
+function renderPlan(p) {
+  const chips = p.selections.map((s) => s.substituted
+    ? `<span class="tag new">${esc(s.ingredient_code)}→${esc(s.selected_code)}</span>`
+    : `<span class="tag muted">${esc(s.ingredient_code)}</span>`).join("");
+
+  const rows = p.selections.map((s) => {
+    const pathHtml = s.path.map((n, i) =>
+      (i ? '<span class="path-edge"> → </span>' : "") +
+      `<span class="path-node${i === s.path.length - 1 ? " terminal" : ""}">${esc(n.code)}` +
+      (n.allergens.length ? `<span class="al">[${esc(n.allergens.join(","))}]</span>` : "") +
+      `</span>`).join("");
+    const notes = s.edges.filter((e) => e.note)
+      .map((e) => `<small class="hint">${esc(e.source_code)}→${esc(e.target_code)}：${esc(e.note)}</small>`)
+      .join("<br>");
+    return `<tr>
+      <td class="code-mono">${esc(s.ingredient_code)}<br><small>${esc(s.ingredient_name)}${s.quantity != null ? ` · ${s.quantity}${esc(s.unit || "")}` : ""}</small></td>
+      <td>${s.substituted ? '<span class="tag new">替代为</span> ' : '<span class="tag ok">保留原料</span> '}
+        <strong class="code-mono">${esc(s.selected_code)}</strong> ${esc(s.selected_name)}</td>
+      <td><div class="path-line">${pathHtml}</div>${notes}</td>
+      <td>${allergenTags(s.selected_allergens)}</td>
+    </tr>`;
+  }).join("");
+
+  return `<details class="card plan-card">
+    <summary>
+      <strong>方案 #${p.rank}</strong>
+      <span class="tag ${p.substitution_count ? "new" : "ok"}">替换 ${p.substitution_count} 项</span>
+      <span class="tag muted">路径总长 ${p.total_path_length}</span>
+      <span class="plan-chips">${chips}</span>
+      <span class="plan-allergens">整方过敏原：${allergenTags(p.allergens)}</span>
+    </summary>
+    <table class="data-table" style="margin-top:10px">
+      <thead><tr><th>配料</th><th>所选原料</th><th>替代路径</th><th>过敏原</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </details>`;
+}
+
+function renderSafePlans(data) {
+  const r = data.recipe;
+  let html = `
+    <div class="summary-bar">
+      <div class="summary-box"><h4>配方</h4><strong>${esc(r.code)}</strong> v${esc(r.version)}<br><small>${esc(r.name)}</small></div>
+      <div class="summary-box"><h4>需避开的过敏原</h4>${allergenTags(data.banned_allergens, "direct")}</div>
+      <div class="summary-box"><h4>方案数</h4><strong style="font-size:20px">${data.plan_count}</strong>
+        ${data.truncated ? `<br><small>结果被截断，仅展示最优前 ${data.limit} 组</small>` : ""}</div>
+    </div>`;
+
+  if (!data.plans.length) {
+    html += `<div class="alert cycle"><strong>⚠ 无解：以下配料无法获得安全替代（阻塞配料）</strong><ul>`;
+    html += data.blocked_items.map((b) =>
+      `<li><span class="code-mono">${esc(b.ingredient_code)}</span> ${esc(b.ingredient_name)} — ${esc(b.reason)}</li>`).join("");
+    html += `</ul></div>`;
+  }
+
+  html += `<details class="card"><summary>各配料候选情况（${data.items.length} 种配料）</summary>
+    <table class="data-table" style="margin-top:8px">
+      <thead><tr><th>配料</th><th>安全候选数</th><th>因过敏原排除</th><th>因缺失排除</th><th>因循环排除</th><th>备注</th></tr></thead>
+      <tbody>${data.items.map((it) => `<tr>
+        <td class="code-mono">${esc(it.ingredient_code)}<br><small>${esc(it.ingredient_name)}</small></td>
+        <td>${it.candidate_count}</td>
+        <td>${it.excluded.banned_allergen}</td>
+        <td>${it.excluded.missing_node}</td>
+        <td>${it.excluded.cycle}</td>
+        <td>${!it.exists ? '<span class="badge missing">原料缺失</span>' : ""}${it.candidates_truncated ? '<span class="badge missing">候选已截断</span>' : ""}</td>
+      </tr>`).join("")}</tbody>
+    </table></details>`;
+
+  html += data.plans.map(renderPlan).join("");
+  $("#sp-result").innerHTML = html;
+}
+
+$("#btn-safe-plans").addEventListener("click", async () => {
+  const id = $("#sp-recipe").value;
+  if (!id) return toast("请先选择配方", true);
+  const banned = $$("#sp-allergens input:checked").map((c) => c.value);
+  $("#sp-extra").value.split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
+    .forEach((a) => { if (!banned.includes(a)) banned.push(a); });
+  try {
+    const data = await api(`/api/recipes/${id}/safe-plans`, {
+      method: "POST",
+      body: { banned_allergens: banned },
+    });
+    renderSafePlans(data);
   } catch (err) {
     toast(err.message, true);
   }

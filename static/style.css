@@ -217,6 +217,47 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #bfe0cd; border-c
 
 .allergen-table td, .allergen-table th { font-size: 13px; }
 
+/* 安全替代方案 */
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 8px 0 14px;
+}
+.checkbox-grid .chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fafbfa;
+}
+.checkbox-grid .chk:has(input:checked) {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+.sp-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 420px;
+}
+.plan-card summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  font-size: 14px;
+}
+.plan-chips { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.plan-allergens { color: var(--muted); font-size: 13px; }
+
 /* 对比 */
 .compare-picker { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
 .compare-picker label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
